@@ -28,28 +28,37 @@ export default function Home() {
         setCurrentIndex(index);
     }
 
+
     // Scroll Reset on change
     useEffect(() => {
         window.scrollTo({ top: 0, behavior: "instant" });
     }, [currentIndex]);
 
-    // Loading State
+    // Loading State Logic
+    const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+    const [imagesLoaded, setImagesLoaded] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Initial Load Handler from the First Product
+    // 1. Branding Timer
     useEffect(() => {
-        // Force close cart on mount to prevent stuck state
+        // Force close cart on mount
         useCartStore.setState({ isOpen: false });
 
-        // We simulate a minimum load time for branding, then fade out
-        const timer = setTimeout(() => setIsLoading(false), 2000);
+        const timer = setTimeout(() => {
+            setMinTimeElapsed(true);
+        }, 2000);
         return () => clearTimeout(timer);
     }, []);
 
+    // 2. Check both conditions
+    useEffect(() => {
+        if (minTimeElapsed && imagesLoaded) {
+            setIsLoading(false);
+        }
+    }, [minTimeElapsed, imagesLoaded]);
+
     return (
         <main className="relative min-h-screen">
-            <Navbar />
-
             {/* Loading Screen */}
             <AnimatePresence>
                 {isLoading && (
@@ -81,52 +90,57 @@ export default function Home() {
                 )}
             </AnimatePresence>
 
-            {/* Background Transition */}
-            <div
-                className="fixed inset-0 -z-10 bg-zinc-50"
-            />
+            {/* Main Content with Blur Transition */}
+            <div className={`transition-all duration-1000 ease-out ${isLoading ? "blur-xl scale-95 opacity-0" : "blur-0 scale-100 opacity-100"}`}>
+                <Navbar />
 
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                >
-                    {/* Scroll Experience Container */}
-                    <ScrollSection product={product} />
+                {/* Background Transition */}
+                <div
+                    className="fixed inset-0 -z-10 bg-zinc-50"
+                />
 
-                    {/* Details Section */}
-                    <DetailsSection product={product} />
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={product.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {/* Scroll Experience Container */}
+                        <ScrollSection product={product} onImagesLoaded={() => setImagesLoaded(true)} />
 
-                    {/* Freshness Section */}
-                    <FreshnessSection product={product} />
+                        {/* Details Section */}
+                        <DetailsSection product={product} />
 
-                    {/* Buy Now & Next */}
-                    <BuyNowSection product={product} onNext={nextProduct} />
+                        {/* Freshness Section */}
+                        <FreshnessSection product={product} />
 
-                </motion.div>
-            </AnimatePresence>
+                        {/* Buy Now & Next */}
+                        <BuyNowSection product={product} onNext={nextProduct} />
+
+                    </motion.div>
+                </AnimatePresence>
 
 
 
-            {/* Navigation Controls (Fixed) */}
-            <NavigationControls
-                currentIndex={currentIndex}
-                total={products.length}
-                onNext={nextProduct}
-                onPrev={prevProduct}
-                onSelect={setProduct}
-            />
+                {/* Navigation Controls (Fixed) */}
+                <NavigationControls
+                    currentIndex={currentIndex}
+                    total={products.length}
+                    onNext={nextProduct}
+                    onPrev={prevProduct}
+                    onSelect={setProduct}
+                />
 
-            <Footer />
+                <Footer />
+            </div>
         </main>
     );
 }
 
 // Sub-component to handle the scroll logic cleanly and pass refs
-function ScrollSection({ product }: { product: typeof products[0] }) {
+function ScrollSection({ product, onImagesLoaded }: { product: typeof products[0], onImagesLoaded?: () => void }) {
     const ref = useRef<HTMLDivElement>(null);
     const { scrollYProgress } = useScroll({
         target: ref,
@@ -139,7 +153,7 @@ function ScrollSection({ product }: { product: typeof products[0] }) {
     return (
         <div ref={ref} className="relative h-[500vh]">
             <div className="sticky top-0 h-screen w-full overflow-hidden" style={{ color: product.textColor || "black" }}>
-                <BottleCanvas product={product} scrollYProgress={scrollYProgress} />
+                <BottleCanvas product={product} scrollYProgress={scrollYProgress} onImagesLoaded={onImagesLoaded} />
                 <ProductTextOverlays product={product} scrollYProgress={smoothProgress} textColor={product.textColor || "black"} />
             </div>
         </div>
@@ -331,7 +345,7 @@ function BuyNowSection({ product, onNext }: { product: typeof products[0], onNex
     )
 }
 
-function BottleCanvas({ product, scrollYProgress }: { product: typeof products[0], scrollYProgress: any }) {
+function BottleCanvas({ product, scrollYProgress, onImagesLoaded }: { product: typeof products[0], scrollYProgress: any, onImagesLoaded?: () => void }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [images, setImages] = useState<HTMLImageElement[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
@@ -354,9 +368,14 @@ function BottleCanvas({ product, scrollYProgress }: { product: typeof products[0
             await Promise.all(promises);
             setImages(loadedImages);
             setIsLoaded(true);
+
+            // Notify parent that images are done
+            if (onImagesLoaded) {
+                onImagesLoaded();
+            }
         };
         loadImages();
-    }, [product.folderPath, product.frameCount, product.fileType]);
+    }, [product.folderPath, product.frameCount, product.fileType, onImagesLoaded]);
 
     useMotionValueEvent(scrollYProgress, "change", (latest: number) => {
         if (!isLoaded || images.length === 0) return;
