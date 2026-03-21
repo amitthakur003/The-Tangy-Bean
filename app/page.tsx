@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion, useScroll, useSpring, useMotionValueEvent } from "framer-motion";
 import { products } from "@/data/products";
 import Navbar from "@/components/Navbar";
@@ -16,17 +16,30 @@ export default function Home() {
 
     const product = products[currentIndex];
 
+    const triggerLoading = () => {
+        setIsLoading(true);
+        setImagesLoaded(false);
+        setMinTimeElapsed(false);
+        setTimeout(() => {
+            setMinTimeElapsed(true);
+        }, 1200); // 1.2s branding timer for product switches
+    };
+
     const nextProduct = () => {
+        triggerLoading();
         setCurrentIndex((prev: number) => (prev + 1) % products.length);
     };
 
     const prevProduct = () => {
+        triggerLoading();
         setCurrentIndex((prev: number) => (prev - 1 + products.length) % products.length);
     };
 
     const setProduct = (index: number) => {
+        if (currentIndex === index) return;
+        triggerLoading();
         setCurrentIndex(index);
-    }
+    };
 
 
     // Scroll Reset on change
@@ -38,6 +51,10 @@ export default function Home() {
     const [minTimeElapsed, setMinTimeElapsed] = useState(false);
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    const handleImagesLoaded = useCallback(() => {
+        setImagesLoaded(true);
+    }, []);
 
     // 1. Branding Timer
     useEffect(() => {
@@ -108,7 +125,7 @@ export default function Home() {
                         transition={{ duration: 0.5 }}
                     >
                         {/* Scroll Experience Container */}
-                        <ScrollSection product={product} onImagesLoaded={() => setImagesLoaded(true)} />
+                        <ScrollSection product={product} onImagesLoaded={handleImagesLoaded} />
 
                         {/* Details Section */}
                         <DetailsSection product={product} />
@@ -173,10 +190,10 @@ function NavigationControls({ currentIndex, total, onNext, onPrev, onSelect }: N
     const [visible, setVisible] = useState(true);
 
     useMotionValueEvent(scrollY, "change", (latest) => {
-        // Hero section is 500vh. We want arrows visible for most of it.
-        // Let's hide them when we approach the Next Section (Details).
-        // Assuming ~4 viewport heights of scrolling.
-        const heroEnd = typeof window !== 'undefined' ? window.innerHeight * 3.5 : 2500;
+        // Hero section is 500vh. Sticky content ends at 400vh.
+        // Details section appears at 400vh.
+        // Hiding exactly when the sticky content starts moving up (400vh).
+        const heroEnd = typeof window !== 'undefined' ? window.innerHeight * 4 : 4000;
         setVisible(latest < heroEnd);
     });
 
@@ -193,10 +210,10 @@ function NavigationControls({ currentIndex, total, onNext, onPrev, onSelect }: N
                     {/* Left Handle */}
                     <button
                         onClick={onPrev}
-                        className="pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 w-12 md:w-16 h-32 md:h-48 flex items-center justify-center bg-black/5 hover:bg-black/20 backdrop-blur-[2px] transition-all duration-500 group rounded-r-2xl border-r border-y border-white/5"
+                        className="pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 w-12 md:w-16 h-32 md:h-48 flex items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all duration-500 group rounded-r-2xl border-r border-y border-white/20 shadow-lg"
                         aria-label="Previous Flavor"
                     >
-                        <svg className="w-6 h-6 md:w-8 md:h-8 text-white/50 group-hover:text-white group-hover:-translate-x-1 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-8 h-8 md:w-10 md:h-10 text-gray-900/40 group-hover:text-gray-900 group-hover:-translate-x-1 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
@@ -204,10 +221,10 @@ function NavigationControls({ currentIndex, total, onNext, onPrev, onSelect }: N
                     {/* Right Handle */}
                     <button
                         onClick={onNext}
-                        className="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 w-12 md:w-16 h-32 md:h-48 flex items-center justify-center bg-black/5 hover:bg-black/20 backdrop-blur-[2px] transition-all duration-500 group rounded-l-2xl border-l border-y border-white/5"
+                        className="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 w-12 md:w-16 h-32 md:h-48 flex items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all duration-500 group rounded-l-2xl border-l border-y border-white/20 shadow-lg"
                         aria-label="Next Flavor"
                     >
-                        <svg className="w-6 h-6 md:w-8 md:h-8 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-8 h-8 md:w-10 md:h-10 text-gray-900/40 group-hover:text-gray-900 group-hover:translate-x-1 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
@@ -226,7 +243,7 @@ function NavigationControls({ currentIndex, total, onNext, onPrev, onSelect }: N
                         <button
                             key={p.id}
                             onClick={() => onSelect(i)}
-                            className={`transition-all duration-500 shadow-sm ${i === currentIndex ? "w-8 h-1 bg-white/90" : "w-2 h-1 bg-white/30 hover:bg-white/50"
+                            className={`transition-all duration-500 shadow-sm ${i === currentIndex ? "w-8 h-1 bg-gray-900" : "w-2 h-1 bg-gray-400/50 hover:bg-gray-600/50"
                                 }`}
                             aria-label={p.name}
                         />
@@ -351,30 +368,40 @@ function BottleCanvas({ product, scrollYProgress, onImagesLoaded }: { product: t
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
+        let isCancelled = false;
         const loadImages = async () => {
-            const loadedImages: HTMLImageElement[] = [];
             const totalFrames = product.frameCount || 120; // Default to 120 if undefined
             const ext = product.fileType || 'webp'; // Default to webp if undefined
+            const loadedImages: (HTMLImageElement | undefined)[] = new Array(totalFrames).fill(undefined);
+            
+            // Load all images asynchronously and wait for all of them
             const promises = [];
             for (let i = 1; i <= totalFrames; i++) {
                 const promise = new Promise<void>((resolve) => {
                     const img = new Image();
                     img.src = `${product.folderPath}/${i}.${ext}`;
                     img.onload = () => { loadedImages[i - 1] = img; resolve(); };
-                    img.onerror = () => { resolve(); };
+                    img.onerror = () => { resolve(); }; // Resolve on error so Promise.all doesn't fail
                 });
                 promises.push(promise);
             }
+            
             await Promise.all(promises);
-            setImages(loadedImages);
-            setIsLoaded(true);
-
-            // Notify parent that images are done
-            if (onImagesLoaded) {
-                onImagesLoaded();
+            
+            if (!isCancelled) {
+                setImages(loadedImages as HTMLImageElement[]);
+                setIsLoaded(true);
+                // Notify parent that ALL images are done loading
+                if (onImagesLoaded) {
+                    onImagesLoaded();
+                }
             }
         };
         loadImages();
+        
+        return () => {
+            isCancelled = true;
+        };
     }, [product.folderPath, product.frameCount, product.fileType, onImagesLoaded]);
 
     useMotionValueEvent(scrollYProgress, "change", (latest: number) => {
